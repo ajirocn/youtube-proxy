@@ -1,5 +1,4 @@
 
-```javascript
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
@@ -77,4 +76,3 @@ app.get('/video', async (req, res) => {
 app.listen(process.env.PORT || 3000, () => {
   console.log(`Listening on port ${process.env.PORT || 3000}...`);
 });
-```
