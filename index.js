@@ -1,78 +1,73 @@
 
+const fetch = require('node-fetch');
 const express = require('express');
-const cors = require('cors');
-const axios = require('axios');
-
 const app = express();
-app.use(cors());
 
-const search = async (q) => {
-  const response = await axios.get('https://www.youtube.com/results', {
-    params: {
-      search_query: q
-    }
-  });
-  return response.data
-    .split('ytInitialData = ')[1]
-    .split(';window')[0];
-};
+const API_BASE_URL = 'https://www.googleapis.com/youtube/v3';
+const MAX_RESULTS = 10;
+const YOUTUBE_API_KEY = 'YOUR_API_KEY_HERE';
 
-const getVideoInfo = async (id) => {
-  const response = await axios.get(`https://www.youtube.com/watch?v=${id}`);
-  const playerConfig = response.data
-    .split('ytplayer.config = ')[1]
-    .split(';ytplayer.load')[0];
-  const config = JSON.parse(playerConfig);
-  const videoDetails = config.args.player_response
-    ? JSON.parse(config.args.player_response).videoDetails
-    : {};
-  const { url_encoded_fmt_stream_map } = response.data.split('&').reduce((accumulator, currentValue) => {
-    const [ key, value ] = currentValue.split('=');
-    accumulator[key] = decodeURIComponent(value);
-    return accumulator;
-  }, {});
-  const urls = url_encoded_fmt_stream_map.split(',');
-  const qualities = urls.map((url) => {
-    const parameters = url.split('&').reduce((accumulator, currentValue) => {
-      const [ key, value ] = currentValue.split('=');
-      accumulator[key] = decodeURIComponent(value);
-      return accumulator;
-    }, {});
-    const type = parameters.type.split(';')[0];
-    return {
-      quality: parameters.quality_label || parameters.quality || 'Unknown',
-      type,
-      url: parameters.url,
-    };
-  });
-  return {
-    videoDetails,
-    qualities
-  };
-};
+app.get('/', async (req, res) => {
+  try {
+    const recommendedVideos = await fetchVideos('videos', {
+      chart: 'mostPopular',
+      maxResults: MAX_RESULTS,
+      regionCode: 'CN',
+    });
+    res.send(recommendedVideos.items);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send(error);
+  }
+});
 
 app.get('/search', async (req, res) => {
-  const { q } = req.query;
   try {
-    const data = await search(q);
-    res.status(200).send(data);
+    const { query } = req.query;
+    const searchResults = await fetchVideos('search', {
+      q: query,
+      maxResults: MAX_RESULTS,
+      regionCode: 'CN',
+    });
+    res.send(searchResults.items);
   } catch (error) {
-    console.log(error);
-    res.status(400).send('Error occurred while searching videos.');
+    console.error(error);
+    res.status(500).send(error);
   }
 });
 
 app.get('/video', async (req, res) => {
-  const { id } = req.query;
   try {
-    const data = await getVideoInfo(id);
-    res.status(200).json(data);
+    const { id } = req.query;
+    const videoData = await fetchVideoData(id);
+    const videoUrl = videoData.streams.find((s) => s.quality === 'hd1080').url;
+    res.redirect(videoUrl);
   } catch (error) {
-    console.log(error);
-    res.status(400).send('Error occurred while fetching video data.');
+    console.error(error);
+    res.status(500).send(error);
   }
 });
 
-app.listen(process.env.PORT || 3000, () => {
-  console.log(`Listening on port ${process.env.PORT || 3000}...`);
-});
+async function fetchVideos(endpoint, queryParams) {
+  const url = `${API_BASE_URL}/${endpoint}?part=snippet&key=${YOUTUBE_API_KEY}&${toQueryString(
+    queryParams
+  )}`;
+  const response = await fetch(url);
+  const json = await response.json();
+  return json;
+}
+
+async function fetchVideoData(id) {
+  const url = `${API_BASE_URL}/videos?part=streamingDetails&id=${id}&key=${YOUTUBE_API_KEY}`;
+  const response = await fetch(url);
+  const json = await response.json();
+  return json.items[0];
+}
+
+function toQueryString(obj) {
+  return Object.entries(obj)
+    .map(([key, val]) => `${key}=${encodeURIComponent(val)}`)
+    .join('&');
+}
+
+module.exports = app;
