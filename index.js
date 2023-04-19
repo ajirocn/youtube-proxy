@@ -5,7 +5,7 @@ const app = express();
 
 const API_BASE_URL = 'https://www.googleapis.com/youtube/v3';
 const MAX_RESULTS = 10;
-const YOUTUBE_API_KEY = 'YOUR_API_KEY_HERE';
+const YOUTUBE_API_KEY = 'AIzaSyBE9j-YG8g3hb2HueVo0bk-K32jVmrEud4';
 
 app.get('/', async (req, res) => {
   try {
